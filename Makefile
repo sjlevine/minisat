@@ -2,7 +2,7 @@
 
 .PHONY:	r d p sh cr cd cp csh lr ld lp lsh config all install install-headers install-lib\
         install-bin clean distclean
-all:	r lr lsh
+all:	r lr lsh lb
 
 ## Load Previous Configuration ####################################################################
 
@@ -18,7 +18,7 @@ MINISAT_RELSYM ?= -g
 
 # Sets of compile flags for different build types
 MINISAT_REL    ?= -O3 -D NDEBUG
-MINISAT_DEB    ?= -O0 -D DEBUG 
+MINISAT_DEB    ?= -O0 -D DEBUG
 MINISAT_PRF    ?= -O3 -D NDEBUG
 MINISAT_FPIC   ?= -fpic
 
@@ -53,6 +53,7 @@ MINISAT      = minisat#       Name of MiniSat main executable.
 MINISAT_CORE = minisat_core#  Name of simplified MiniSat executable (only core solver support).
 MINISAT_SLIB = lib$(MINISAT).a#  Name of MiniSat static library.
 MINISAT_DLIB = lib$(MINISAT).so# Name of MiniSat shared library.
+MINISAT_BINDINGSLIB = lib$(MINISAT)_bindings.so# Name of C-friendly bindings
 
 # Shared Library Version
 SOMAJOR=2
@@ -73,6 +74,9 @@ SRCS = $(wildcard minisat/core/*.cc) $(wildcard minisat/simp/*.cc) $(wildcard mi
 HDRS = $(wildcard minisat/mtl/*.h) $(wildcard minisat/core/*.h) $(wildcard minisat/simp/*.h) $(wildcard minisat/utils/*.h)
 OBJS = $(filter-out %Main.o, $(SRCS:.cc=.o))
 
+SRCS_BINDINGS = $(wildcard minisat/bindings/*.cc)
+OBJS_BINDINGS = $(SRCS_BINDINGS:.cc=.o)
+
 r:	$(BUILD_DIR)/release/bin/$(MINISAT)
 d:	$(BUILD_DIR)/debug/bin/$(MINISAT)
 p:	$(BUILD_DIR)/profile/bin/$(MINISAT)
@@ -87,6 +91,8 @@ lr:	$(BUILD_DIR)/release/lib/$(MINISAT_SLIB)
 ld:	$(BUILD_DIR)/debug/lib/$(MINISAT_SLIB)
 lp:	$(BUILD_DIR)/profile/lib/$(MINISAT_SLIB)
 lsh:	$(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)
+
+lb: $(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB)
 
 ## Build-type Compile-flags:
 $(BUILD_DIR)/release/%.o:			MINISAT_CXXFLAGS +=$(MINISAT_REL) $(MINISAT_RELSYM)
@@ -122,6 +128,11 @@ $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)\
  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR)\
  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB):	$(foreach o,$(OBJS),$(BUILD_DIR)/dynamic/$(o))
 
+## Bindings library dependencies:
+$(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)\
+ $(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB).$(SOMAJOR)\
+ $(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB):	$(foreach o,$(OBJS),$(BUILD_DIR)/dynamic/$(o)) $(foreach o,$(OBJS_BINDINGS),$(BUILD_DIR)/dynamic/$(o))
+
 ## Compile rules (these should be unified, buit I have not yet found a way which works in GNU Make)
 $(BUILD_DIR)/release/%.o:	%.cc
 	$(ECHO) Compiling: $@
@@ -148,12 +159,14 @@ $(BUILD_DIR)/release/bin/$(MINISAT) $(BUILD_DIR)/debug/bin/$(MINISAT) $(BUILD_DI
 $(BUILD_DIR)/release/bin/$(MINISAT_CORE) $(BUILD_DIR)/debug/bin/$(MINISAT_CORE) $(BUILD_DIR)/profile/bin/$(MINISAT_CORE) $(BUILD_DIR)/dynamic/bin/$(MINISAT_CORE):
 	$(ECHO) Linking Binary: $@
 	$(VERB) mkdir -p $(dir $@)
+	$(ECHO)     $(CXX) $^ $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@
 	$(VERB) $(CXX) $^ $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@
 
 ## Static Library rule
 %/lib/$(MINISAT_SLIB):
 	$(ECHO) Linking Static Library: $@
 	$(VERB) mkdir -p $(dir $@)
+	$(ECHO)     $(AR) -rcs $@ $^
 	$(VERB) $(AR) -rcs $@ $^
 
 ## Shared Library rule
@@ -162,9 +175,22 @@ $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)\
  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB):
 	$(ECHO) Linking Shared Library: $@
 	$(VERB) mkdir -p $(dir $@)
+	$(ECHO)     $(CXX) $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@ -shared -Wl,-soname,$(MINISAT_DLIB).$(SOMAJOR) $^
 	$(VERB) $(CXX) $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@ -shared -Wl,-soname,$(MINISAT_DLIB).$(SOMAJOR) $^
 	$(VERB) ln -sf $(MINISAT_DLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE) $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR)
 	$(VERB) ln -sf $(MINISAT_DLIB).$(SOMAJOR) $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB)
+
+## Bindings rule:
+$(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)\
+ $(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB).$(SOMAJOR)\
+ $(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB):
+	$(ECHO) Linking Bindings Library: $@
+	$(VERB) mkdir -p $(dir $@)
+	$(ECHO) $(CXX) $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@ -shared -Wl,-soname,$(MINISAT_BINDINGSLIB).$(SOMAJOR) $^
+	$(VERB) $(CXX) $(MINISAT_LDFLAGS) $(LDFLAGS) -o $@ -shared -Wl,-soname,$(MINISAT_BINDINGSLIB).$(SOMAJOR) $^
+	$(VERB) ln -sf $(MINISAT_BINDINGSLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE) $(BUILD_DIR)/dynamic/lib/$(MINISAT_BINDINGSLIB).$(SOMAJOR)
+	$(VERB) ln -sf $(MINISAT_BINDINGSLIB).$(SOMAJOR) $(BUILD_DIR)/dynamic/lib/$(MINISAT_BINDINGSLIB)
+
 
 install:	install-headers install-lib install-bin
 install-debug:	install-headers install-lib-debug
@@ -195,6 +221,10 @@ install-bin: $(BUILD_DIR)/dynamic/bin/$(MINISAT)
 	$(INSTALL) -d $(DESTDIR)$(bindir)
 	$(INSTALL) -m 755 $(BUILD_DIR)/dynamic/bin/$(MINISAT) $(DESTDIR)$(bindir)
 
+install-bindings: $(BUILD_DIR)/bindings/lib/$(MINISAT_BINDINGSLIB)
+	$(INSTALL) -d $(DESTDIR)$(libdir)
+	$(INSTALL) -m 644 $(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB) $(DESTDIR)$(libdir)
+
 clean:
 	rm -f $(foreach t, release debug profile dynamic, $(foreach o, $(SRCS:.cc=.o), $(BUILD_DIR)/$t/$o)) \
           $(foreach t, release debug profile dynamic, $(foreach d, $(SRCS:.cc=.d), $(BUILD_DIR)/$t/$d)) \
@@ -202,7 +232,10 @@ clean:
 	  $(foreach t, release debug profile, $(BUILD_DIR)/$t/lib/$(MINISAT_SLIB)) \
 	  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)\
 	  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB).$(SOMAJOR)\
-	  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB)
+	  $(BUILD_DIR)/dynamic/lib/$(MINISAT_DLIB)\
+		$(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB).$(SOMAJOR).$(SOMINOR)$(SORELEASE)\
+		$(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB).$(SOMAJOR)\
+		$(BUILD_DIR)/dynamic/bindings/$(MINISAT_BINDINGSLIB)
 
 distclean:	clean
 	rm -f config.mk
