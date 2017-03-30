@@ -7,6 +7,14 @@ up CNF problems and checking satisfiability -- without doing any memory
 management. Makes integrating with CFFI systems easier by just having a purely
 functional interface.
 
+Build instructions:
+```
+make config prefix=build  # will create a build folder
+make
+```
+
+Once done, there will be a `libminisat_bindings.so` file in the `build/dynamic/bindings/` folder.
+
 
 ================================================================================
 Quick Install
