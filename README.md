@@ -13,7 +13,7 @@ make config prefix=build  # will create a build folder
 make
 ```
 
-Once done, there will be a `libminisat_bindings.so` file in the `build/dynamic/bindings/` folder.
+Once done, there will be a `libminisat_bindings.so` file in the `build/dynamic/bindings/` folder. To use it, copy it somewhere like `/usr/local/lib`, then run `ldconfig`.
 
 You can also run
 ```bash
